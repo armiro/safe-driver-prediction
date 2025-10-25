@@ -97,15 +97,16 @@ class DataFactory:
         impute missing values in the target column with predictions 
         of a ML model, trained on other features
         """
-        null_mask = self.df.filter(F.col(target_col).isNull())  # to be predicted
-        not_null_mask = self.df.filter(F.col(target_col).isNotNull())  # used for training
+        null_mask_df = self.df.filter(F.col(target_col).isNull())  # to be predicted
+        not_null_mask_df = self.df.filter(F.col(target_col).isNotNull())  # used for training
         cat_cols, bin_cols, _ = self._split_feature_types()  # to know target col is cat/bin or not
 
-        input_features = self._extract_feature_columns().remove(target_col)
+        input_features = self._extract_feature_columns()
+        input_features.remove(target_col)
 
-        X_train = self.df.filter(not_null_mask).select(input_features).toPandas()
-        y_train = self.df.filter(not_null_mask).select(target_col).toPandas()
-        X_test = self.df.filter(null_mask).select(input_features).toPandas()
+        X_train = not_null_mask_df.select(input_features).toPandas()
+        y_train = not_null_mask_df.select([target_col]).toPandas()
+        X_test = null_mask_df.select(input_features).toPandas()
         # y_test = self.df.filter(null_mask).select(target_col).toPandas()
 
         model_type = "classification" if target_col in [*cat_cols, *bin_cols] else "regression"
