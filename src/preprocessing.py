@@ -4,7 +4,7 @@ import pandas as pd
 import pyspark.sql.functions as F
 
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from sklearn.metrics import pairwise_distances_argmin_min
+# from sklearn.metrics import pairwise_distances_argmin_min
 
 
 class DataFactory:
@@ -92,14 +92,15 @@ class DataFactory:
         self.set_df(new_df)
 
     
-    def impute_with_prediction(self, target_col: str) -> pyspark.sql.DataFrame:
+    def impute_with_prediction(self, df: pyspark.sql.DataFrame, target_col: str) -> pyspark.sql.DataFrame:
         """
         impute missing values in the target column with predictions 
         of a ML model, trained on other features
         """
-        null_mask_df = self.df.filter(F.col(target_col).isNull())  # to be predicted
-        not_null_mask_df = self.df.filter(F.col(target_col).isNotNull())  # used for training
+        null_mask_df = df.filter(F.col(target_col).isNull())  # to be predicted
+        not_null_mask_df = df.filter(F.col(target_col).isNotNull())  # used for training
         cat_cols, bin_cols, _ = self._split_feature_types()  # to know target col is cat/bin or not
+        null_ids = [row.id for row in null_mask_df.select("id").collect()]  # extract null ids
 
         input_features = self._extract_feature_columns()
         input_features.remove(target_col)
@@ -107,10 +108,8 @@ class DataFactory:
         X_train = not_null_mask_df.select(input_features).toPandas()
         y_train = not_null_mask_df.select([target_col]).toPandas()
         X_test = null_mask_df.select(input_features).toPandas()
-        # y_test = self.df.filter(null_mask).select(target_col).toPandas()
 
         model_type = "classification" if target_col in [*cat_cols, *bin_cols] else "regression"
-        print(model_type)
         if model_type == "classification":
             model = DecisionTreeClassifier(random_state=40)
         else:
@@ -118,12 +117,21 @@ class DataFactory:
         
         model.fit(X_train, y_train, sample_weight=None)
         preds = model.predict(X_test)
-        print(preds)
 
-        if model_type == "classification":
-            unique_vals = self.df.select(target_col).where(F.col(target_col).isNotNull()).distinct()
-            # TODO: complete the function
-            
+        spark = pyspark.sql.SparkSession.builder.getOrCreate()
+        preds_df = spark.createDataFrame(
+            [(idx, float(pred)) for idx, pred in zip(null_ids, preds)], 
+            ["id", "predicted_value"]
+        )
+        joined_df = df.join(preds_df, on="id", how="left")
+        imputed_df = joined_df.withColumn(
+            target_col,
+            F.coalesce(F.col(target_col), F.col("predicted_value"))
+        ).drop("predicted_value")
+
+        print(f"imputed high-null column '{target_col}' using {model_type} decision tree model.")
+        return imputed_df
+        
 
     def handle_high_null_columns(
         self, 
@@ -149,13 +157,17 @@ class DataFactory:
 
         if method == "drop":
             new_df = self.df.drop(*high_null_cols)
+            print(f"dropped {len(high_null_cols)} columns with high null ratio.")
         elif method == "fill":
             new_df = self.df.fillna(fill_value, subset=high_null_cols)
+            print(f"filled {len(high_null_cols)} columns with high null ratio, with {fill_value}")
         elif method == "predict":
-            new_df = self.impute_with_prediction(target_col=high_null_cols[0])
+            new_df = self.df
+            for col in high_null_cols:
+                new_df = self.impute_with_prediction(df=new_df, target_col=col)
+            print(f"imputed {len(high_null_cols)} columns with high null ratio using prediction.")
 
         self.set_df(new_df)
-        return new_df
 
 
     def impute_missing_data(self) -> pyspark.sql.DataFrame:
