@@ -2,9 +2,9 @@ import pyspark
 import numpy as np
 import pandas as pd
 import pyspark.sql.functions as F
+import pyspark.ml.feature as ft
 
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-# from sklearn.metrics import pairwise_distances_argmin_min
 
 
 class DataFactory:
@@ -31,13 +31,6 @@ class DataFactory:
         get the dataframe
         """
         return self.df
-    
-
-    def convert_to_pandas(self, df: pyspark.sql.DataFrame) -> pd.DataFrame:
-        """
-        convert the spark dataframe to a pandas dataframe
-        """
-        return df.toPandas()
     
 
     def _extract_feature_columns(self) -> list:
@@ -76,10 +69,12 @@ class DataFactory:
         new_df = self.df.select(
             [F.col(c).alias(c.replace('ps_', '')) for c in self.df.columns]  # fix column names
         )
+        print("removed prefix 'ps_' from column names to standardize naming.")
         new_df = new_df.select(
             [F.when(F.col(c) == -1, None)  # replace -1 with None for nulls
              .otherwise(F.col(c)).alias(c) for c in new_df.columns]
         )
+        print("replaced -1 with None for nulls in the dataset.")
         self.set_df(new_df)
 
 
@@ -89,6 +84,8 @@ class DataFactory:
         """
         feature_cols = self._extract_feature_columns()
         new_df = self.df.dropDuplicates(subset=feature_cols)
+        print(f"dropped {self.df.count() - new_df.count()} duplicate rows from the dataset.")
+
         self.set_df(new_df)
 
     
@@ -170,18 +167,50 @@ class DataFactory:
         self.set_df(new_df)
 
 
-    def impute_missing_data(self) -> pyspark.sql.DataFrame:
+    def auto_impute_missing_data(self) -> pyspark.sql.DataFrame:
         """
-        impute missing data using mean/median/median_log for numerical
-        and mode for categorical features
+        impute missing data using median for numerical features
+        and mode for categorical/binary features
         """
+        new_df = self.get_df()
         cat_cols, bin_cols, num_cols = self._split_feature_types()
-        for col in self.df.columns:
-            if col in [*cat_cols, *bin_cols]:
-                mode_val = self.df.groupBy(col).count().orderBy(F.desc("count")).first()
-                print(mode_val)
-                # TODO: complete the function
 
+        for col in [*cat_cols, *bin_cols]:
+            mode_value = new_df.groupBy(col).count().orderBy(F.desc("count")).first()[0]
+            # print(col, mode_value)
+            if mode_value is not None:
+                new_df = new_df.fillna(mode_value, subset=[col])
+            else:
+                print(f"WARNING: mode value of '{col}' column is None.", end=" ")
+                print("consider using 'handle_high_null_columns' function.")
+        print(f"imputed {len(cat_cols) + len(bin_cols)} categorical/binary columns with mode value.")
+        
+        medians = {}
+        for col in num_cols:
+            median_value = new_df.approxQuantile(col, [0.5], 0.001)[0]
+            medians[col] = median_value
+        new_df = new_df.fillna(medians)
+        print(f"imputed {len(num_cols)} numerical columns with median value.")
+        
+        self.set_df(new_df)
+    
+
+    def create_binary_super_groups_for(self, subset: list) -> pyspark.sql.DataFrame:
+        """
+        create super groups for categorical features 
+        """
+        new_df = self.get_df()
+
+        for col_name in subset:
+            mode_value = new_df.groupBy(col_name).count().orderBy(F.desc("count")).first()[0]
+            new_df = new_df.withColumn(
+                f"{col_name}_simplified", 
+                F.when(F.col(col_name) == mode_value, 1).otherwise(0)
+            )
+            print(f"created '{col_name}_simplified' binary column by super groupping on mode value.")
+        
+        self.set_df(new_df)
+        
 
 
 
