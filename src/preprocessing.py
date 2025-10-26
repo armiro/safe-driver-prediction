@@ -92,7 +92,7 @@ class DataFactory:
         self.set_df(new_df)
 
     
-    def impute_with_prediction(self, df: pyspark.sql.DataFrame, target_col: str) -> pyspark.sql.DataFrame:
+    def _impute_with_prediction(self, df: pyspark.sql.DataFrame, target_col: str) -> pyspark.sql.DataFrame:
         """
         impute missing values in the target column with predictions 
         of a ML model, trained on other features
@@ -111,7 +111,7 @@ class DataFactory:
 
         model_type = "classification" if target_col in [*cat_cols, *bin_cols] else "regression"
         if model_type == "classification":
-            model = DecisionTreeClassifier(random_state=40)
+            model = DecisionTreeClassifier(class_weight="balanced", random_state=40)
         else:
             model = DecisionTreeRegressor(random_state=40)
         
@@ -164,7 +164,7 @@ class DataFactory:
         elif method == "predict":
             new_df = self.df
             for col in high_null_cols:
-                new_df = self.impute_with_prediction(df=new_df, target_col=col)
+                new_df = self._impute_with_prediction(df=new_df, target_col=col)
             print(f"imputed {len(high_null_cols)} columns with high null ratio using prediction.")
 
         self.set_df(new_df)
