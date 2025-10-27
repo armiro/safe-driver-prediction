@@ -1,0 +1,28 @@
+{
+  "training_parameters": {
+    "feature_store_path": "workspace.safe_driver_prediction.feature_store_train",
+    "test_set_path": "workspace.safe_driver_prediction.feature_store_test",
+    "target_column_name": "target",
+    "test_ratio": 0.25
+  },
+  "modeling_parameters": [
+    {
+      "model_name": "catboost",
+      "hyperparameters": {
+        "iterations": 1000,
+        "early_stopping_rounds": 100,
+        "auto_class_weights": "Balanced",
+        "learning_rate": 0.01,
+        "depth": 8,
+        "loss_function": "Logloss",
+        "use_best_model": true,
+        "random_seed": 40
+      }
+    },
+    {
+      "model_name": "xgboost",
+      "hyperparameters": {}
+    }
+  ]
+}
+
