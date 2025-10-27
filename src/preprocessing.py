@@ -58,7 +58,6 @@ class DataFactory:
                 categorical_cols.append(col)
             else:
                 numerical_cols.append(col)
-        
         return (categorical_cols, binary_cols, numerical_cols)
 
 
@@ -85,7 +84,6 @@ class DataFactory:
         feature_cols = self._extract_feature_columns()
         new_df = self.df.dropDuplicates(subset=feature_cols)
         print(f"dropped {self.df.count() - new_df.count()} duplicate rows from the dataset.")
-
         self.set_df(new_df)
 
     
@@ -115,8 +113,7 @@ class DataFactory:
         model.fit(X_train, y_train, sample_weight=None)
         preds = model.predict(X_test)
 
-        spark = pyspark.sql.SparkSession.builder.getOrCreate()
-        preds_df = spark.createDataFrame(
+        preds_df = self.spark.createDataFrame(
             [(idx, float(pred)) for idx, pred in zip(null_ids, preds)], 
             ["id", "predicted_value"]
         )
@@ -210,8 +207,4 @@ class DataFactory:
             print(f"created '{col_name}_simplified' binary column by super groupping on mode value.")
         
         self.set_df(new_df)
-        
-
-
-
 
