@@ -7,7 +7,7 @@ import pyspark.sql.functions as F
 from sklearn.model_selection import train_test_split
 
 
-class FrequencyModelling:
+class FrequencyModeling:
     def __init__(
         self, 
         dataset: pyspark.sql.DataFrame, 
@@ -16,7 +16,7 @@ class FrequencyModelling:
         mlflow_experiment_name: str
         ):
         """
-        constructor for the FrequencyModelling class.
+        constructor for the FrequencyModeling class.
         """
         self.spark = pyspark.sql.SparkSession.builder.getOrCreate()
         self.dataset = dataset
