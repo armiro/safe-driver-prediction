@@ -1,9 +1,13 @@
 {
+  "run_parameters": {
+    "run_description": "decrease test ratio from 0.15 to 0.1",
+    "is_major_update": false
+  },
   "training_parameters": {
     "feature_store_path": "workspace.safe_driver_prediction.feature_store_train",
     "test_set_path": "workspace.safe_driver_prediction.feature_store_test",
     "target_column_name": "target",
-    "test_ratio": 0.25
+    "test_ratio": 0.1
   },
   "modeling_parameters": [
     {
