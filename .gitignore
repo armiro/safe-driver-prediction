@@ -94,3 +94,7 @@ cython_debug/
 # catboost training artifacts
 catboost_info/
 
+# any files potentially including tokens or secret keys
+*token*
+*key*
+*secret*
